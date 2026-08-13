@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  
+}
+
+enum Role {
+  admin
+  user
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      Role     @default(user)
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Vehicle {
+  id        Int      @id @default(autoincrement())
+  brand     String
+  model     String
+  year      Int
+  photos    Photo[]
+  parts     Part[]
+  engines   Engine[]
+  createdAt DateTime @default(now())
+}
+
+model Engine {
+  id        Int      @id @default(autoincrement())
+  name      String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  vehicleId Int
+  price     Float
+  currency  String   @default("TRY")
+  createdAt DateTime @default(now())
+}
+
+model Part {
+  id         Int      @id @default(autoincrement())
+  name       String
+  category   String
+  price      Float
+  currency   String   @default("TRY")
+  vehicle    Vehicle? @relation(fields: [vehicleId], references: [id])
+  vehicleId  Int?
+  createdAt  DateTime @default(now())
+}
+
+model Photo {
+  id        Int      @id @default(autoincrement())
+  url       String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  vehicleId Int
+}
