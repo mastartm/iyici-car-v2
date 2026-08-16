@@ -47,7 +47,21 @@ router.post("/", authenticate, requireAdmin, async (req, res) => {
     }
 
     const vehicle = await prisma.vehicle.create({
-      data: { brand, model, year: Number(year) },
+      data: {
+        brand,
+        model,
+        year: Number(year),
+        vin: req.body.vin || undefined,
+        km: req.body.km !== undefined ? Number(req.body.km) : undefined,
+        transmission: req.body.transmission || undefined,
+        color: req.body.color || undefined,
+        seats:
+          req.body.seats !== undefined ? Number(req.body.seats) : undefined,
+        steering: req.body.steering || undefined,
+        segment: req.body.segment || undefined,
+        price:
+          req.body.price !== undefined ? Number(req.body.price) : undefined,
+      },
     });
 
     res.status(201).json(vehicle);
@@ -64,7 +78,22 @@ router.put("/:id", authenticate, requireAdmin, async (req, res) => {
 
     const vehicle = await prisma.vehicle.update({
       where: { id: Number(req.params.id) },
-      data: { brand, model, year: year ? Number(year) : undefined },
+      data: {
+        brand,
+        model,
+        year: year ? Number(year) : undefined,
+        vin: req.body.vin,
+        km: req.body.km !== undefined ? Number(req.body.km) : undefined,
+        transmission: req.body.transmission,
+        color: req.body.color,
+        seats:
+          req.body.seats !== undefined ? Number(req.body.seats) : undefined,
+        steering: req.body.steering,
+        segment: req.body.segment,
+        price:
+          req.body.price !== undefined ? Number(req.body.price) : undefined,
+        visible: req.body.visible,
+      },
     });
 
     res.json(vehicle);
@@ -77,9 +106,16 @@ router.put("/:id", authenticate, requireAdmin, async (req, res) => {
 // ARAÇ SİL (sadece admin)
 router.delete("/:id", authenticate, requireAdmin, async (req, res) => {
   try {
-    await prisma.vehicle.delete({
-      where: { id: Number(req.params.id) },
-    });
+    const id = Number(req.params.id);
+
+    // Önce bağlı kayıtları temizle
+    await prisma.requestItem.deleteMany({ where: { vehicleId: id } });
+    await prisma.photo.deleteMany({ where: { vehicleId: id } });
+    await prisma.engine.deleteMany({ where: { vehicleId: id } });
+    await prisma.part.deleteMany({ where: { vehicleId: id } });
+
+    // Sonra aracı sil
+    await prisma.vehicle.delete({ where: { id } });
 
     res.json({ message: "Araç silindi" });
   } catch (err) {

@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  
 }
 
 enum Role {
@@ -13,28 +12,42 @@ enum Role {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
   password  String
-  role      Role     @default(user)
-  verified  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  role      Role      @default(user)
+  verified  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  requests  Request[]
 }
 
 model Vehicle {
-  id        Int      @id @default(autoincrement())
-  brand     String
-  model     String
-  year      Int
-  photos    Photo[]
-  parts     Part[]
-  engines   Engine[]
-  createdAt DateTime @default(now())
+  id           Int           @id @default(autoincrement())
+  brand        String
+  model        String
+  year         Int
+  vin          String?       @unique
+  km           Int?
+  transmission String?
+  color        String?
+  seats        Int?
+  steering     String?
+  segment      String?
+  price        Float?
+  currency     String        @default("TRY")
+  visible      Boolean       @default(true)
+  photos       Photo[]
+  parts        Part[]
+  engines      Engine[]
+  createdAt    DateTime      @default(now())
+  requestItems RequestItem[]
 }
 
 model Engine {
   id        Int      @id @default(autoincrement())
   name      String
+  code      String?
+  volume    Int?
   vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
   vehicleId Int
   price     Float
@@ -43,19 +56,45 @@ model Engine {
 }
 
 model Part {
-  id         Int      @id @default(autoincrement())
-  name       String
-  category   String
-  price      Float
-  currency   String   @default("TRY")
-  vehicle    Vehicle? @relation(fields: [vehicleId], references: [id])
-  vehicleId  Int?
-  createdAt  DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String
+  price     Float
+  currency  String   @default("TRY")
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
+  vehicleId Int?
+  createdAt DateTime @default(now())
 }
 
 model Photo {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   url       String
-  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+  vehicleId Int
+}
+
+enum RequestStatus {
+  pending
+  approved
+  rejected
+  completed
+}
+
+model Request {
+  id        Int           @id @default(autoincrement())
+  user      User          @relation(fields: [userId], references: [id])
+  userId    Int
+  status    RequestStatus @default(pending)
+  notes     String?       @db.Text
+  hidden    Boolean       @default(false)
+  items     RequestItem[]
+  createdAt DateTime      @default(now())
+}
+
+model RequestItem {
+  id        Int     @id @default(autoincrement())
+  request   Request @relation(fields: [requestId], references: [id])
+  requestId Int
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
   vehicleId Int
 }
