@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import api from "../api/axios";
+import Layout from "../components/Layout";
 
 const statusConfig = {
   pending: { label: "Beklemede", color: "bg-amber-100 text-amber-700" },
@@ -43,9 +43,10 @@ export default function AdminRequests() {
       console.error(err);
     }
   }
-  async function toggleVehicleVisible(vehicle) {
+
+  async function toggleProductVisible(product) {
     try {
-      await api.put(`/vehicles/${vehicle.id}`, { visible: !vehicle.visible });
+      await api.put(`/products/${product.id}`, { visible: !product.visible });
       loadRequests();
     } catch (err) {
       console.error(err);
@@ -75,13 +76,9 @@ export default function AdminRequests() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <Layout>
       <div className="max-w-3xl mx-auto">
-        <Link to="/admin" className="text-sm text-gray-500 hover:text-gray-700">
-          &larr; Admin Panel
-        </Link>
-
-        <h1 className="text-2xl font-bold mt-2 mb-6">Talepler</h1>
+        <h1 className="text-2xl font-bold mb-6">Talepler</h1>
 
         <div className="flex gap-2 flex-wrap mb-6">
           {[
@@ -149,19 +146,19 @@ export default function AdminRequests() {
                         className="flex justify-between items-center text-sm"
                       >
                         <span>
-                          {item.vehicle.brand} {item.vehicle.model} (
-                          {item.vehicle.year})
-                          {!item.vehicle.visible && (
+                          {item.product.name}{" "}
+                          {item.product.year && `(${item.product.year})`}
+                          {!item.product.visible && (
                             <span className="ml-2 text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
                               İlandan Gizli
                             </span>
                           )}
                         </span>
                         <button
-                          onClick={() => toggleVehicleVisible(item.vehicle)}
+                          onClick={() => toggleProductVisible(item.product)}
                           className="text-xs text-gray-500 hover:text-gray-800 underline"
                         >
-                          {item.vehicle.visible
+                          {item.product.visible
                             ? "İlandan Gizle"
                             : "İlanda Göster"}
                         </button>
@@ -213,6 +210,6 @@ export default function AdminRequests() {
           </div>
         )}
       </div>
-    </div>
+    </Layout>
   );
 }

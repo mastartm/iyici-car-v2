@@ -3,7 +3,8 @@ import { AuthProvider } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
-import AdminPanel from "./pages/AdminPanel";
+import Dashboard from "./pages/Dashboard";
+import Inventory from "./pages/Inventory";
 import AdminRequests from "./pages/AdminRequests";
 import AdminUsers from "./pages/AdminUsers";
 import Home from "./pages/Home";
@@ -18,10 +19,18 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route
-              path="/admin"
+              path="/dashboard"
               element={
-                <ProtectedRoute adminOnly>
-                  <AdminPanel />
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory"
+              element={
+                <ProtectedRoute>
+                  <Inventory />
                 </ProtectedRoute>
               }
             />

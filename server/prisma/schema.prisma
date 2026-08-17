@@ -11,6 +11,19 @@ enum Role {
   user
 }
 
+enum ProductCategory {
+  vehicle
+  engine
+  part
+}
+
+enum RequestStatus {
+  pending
+  approved
+  rejected
+  completed
+}
+
 model User {
   id        Int       @id @default(autoincrement())
   email     String    @unique
@@ -21,63 +34,33 @@ model User {
   requests  Request[]
 }
 
-model Vehicle {
-  id           Int           @id @default(autoincrement())
-  brand        String
-  model        String
-  year         Int
-  vin          String?       @unique
+model Product {
+  id           Int             @id @default(autoincrement())
+  category     ProductCategory
+  name         String
+  vin          String?
+  year         Int?
   km           Int?
-  transmission String?
   color        String?
+  segment      String?
+  engineCode   String?
+  engineVolume String?
+  transmission String?
   seats        Int?
   steering     String?
-  segment      String?
   price        Float?
-  currency     String        @default("TRY")
-  visible      Boolean       @default(true)
+  currency     String          @default("TRY")
+  visible      Boolean         @default(true)
   photos       Photo[]
-  parts        Part[]
-  engines      Engine[]
-  createdAt    DateTime      @default(now())
   requestItems RequestItem[]
-}
-
-model Engine {
-  id        Int      @id @default(autoincrement())
-  name      String
-  code      String?
-  volume    Int?
-  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
-  vehicleId Int
-  price     Float
-  currency  String   @default("TRY")
-  createdAt DateTime @default(now())
-}
-
-model Part {
-  id        Int      @id @default(autoincrement())
-  name      String
-  category  String
-  price     Float
-  currency  String   @default("TRY")
-  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
-  vehicleId Int?
-  createdAt DateTime @default(now())
+  createdAt    DateTime        @default(now())
 }
 
 model Photo {
   id        Int     @id @default(autoincrement())
   url       String
-  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
-  vehicleId Int
-}
-
-enum RequestStatus {
-  pending
-  approved
-  rejected
-  completed
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
 }
 
 model Request {
@@ -95,6 +78,6 @@ model RequestItem {
   id        Int     @id @default(autoincrement())
   request   Request @relation(fields: [requestId], references: [id])
   requestId Int
-  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
-  vehicleId Int
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
 }

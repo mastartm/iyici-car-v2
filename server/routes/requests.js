@@ -9,7 +9,7 @@ router.get("/mine", authenticate, async (req, res) => {
   try {
     const requests = await prisma.request.findMany({
       where: { userId: req.user.id, hidden: false },
-      include: { items: { include: { vehicle: true } } },
+      include: { items: { include: { product: true } } },
       orderBy: { createdAt: "desc" },
     });
     res.json(requests);
@@ -24,7 +24,7 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
   try {
     const requests = await prisma.request.findMany({
       include: {
-        items: { include: { vehicle: true } },
+        items: { include: { product: true } },
         user: { select: { id: true, email: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -36,13 +36,13 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-// MÜŞTERİ: Yeni talep oluştur (birden fazla araç ile)
+// MÜŞTERİ: Yeni talep oluştur (birden fazla ürün ile)
 router.post("/", authenticate, async (req, res) => {
   try {
-    const { vehicleIds, notes } = req.body;
+    const { productIds, notes } = req.body;
 
-    if (!Array.isArray(vehicleIds) || vehicleIds.length === 0) {
-      return res.status(400).json({ error: "En az bir araç seçmelisin" });
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ error: "En az bir ürün seçmelisin" });
     }
 
     const request = await prisma.request.create({
@@ -50,12 +50,12 @@ router.post("/", authenticate, async (req, res) => {
         userId: req.user.id,
         notes: notes || undefined,
         items: {
-          create: vehicleIds.map((vehicleId) => ({
-            vehicleId: Number(vehicleId),
+          create: productIds.map((productId) => ({
+            productId: Number(productId),
           })),
         },
       },
-      include: { items: { include: { vehicle: true } } },
+      include: { items: { include: { product: true } } },
     });
 
     res.status(201).json(request);

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useCart } from "../context/CartContext";
+import Layout from "../components/Layout";
 
 export default function Stock() {
   const { cart, removeFromCart, clearCart } = useCart();
@@ -16,7 +17,7 @@ export default function Stock() {
     setError("");
     try {
       await api.post("/requests", {
-        vehicleIds: cart.map((v) => v.id),
+        productIds: cart.map((p) => p.id),
         notes,
       });
       clearCart();
@@ -29,36 +30,30 @@ export default function Stock() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <Layout>
       <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-gray-500 hover:text-gray-700">
-          &larr; Vitrine dön
-        </Link>
-
-        <h1 className="text-2xl font-bold mt-2 mb-6">Stoğum</h1>
+        <h1 className="text-2xl font-bold mb-6">Stoğum</h1>
 
         {cart.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-            Stoğunda henüz araç yok. Vitrinden araç ekleyebilirsin.
+            Stoğunda henüz ürün yok. Vitrinden ürün ekleyebilirsin.
           </div>
         ) : (
           <>
             <div className="space-y-3 mb-6">
-              {cart.map((v) => (
+              {cart.map((p) => (
                 <div
-                  key={v.id}
+                  key={p.id}
                   className="bg-white rounded-lg shadow p-4 flex justify-between items-center"
                 >
                   <div>
-                    <p className="font-semibold">
-                      {v.brand} {v.model}
-                    </p>
+                    <p className="font-semibold">{p.name}</p>
                     <p className="text-xs text-gray-500">
-                      {v.vin || "VIN yok"} • {v.year}
+                      {p.vin || "VIN yok"} {p.year && `• ${p.year}`}
                     </p>
                   </div>
                   <button
-                    onClick={() => removeFromCart(v.id)}
+                    onClick={() => removeFromCart(p.id)}
                     className="text-red-600 hover:text-red-800 text-sm"
                   >
                     Çıkar
@@ -93,11 +88,11 @@ export default function Stock() {
             >
               {submitting
                 ? "Gönderiliyor..."
-                : `Talebi Onayla ve Gönder (${cart.length} araç)`}
+                : `Talebi Onayla ve Gönder (${cart.length} ürün)`}
             </button>
           </>
         )}
       </div>
-    </div>
+    </Layout>
   );
 }

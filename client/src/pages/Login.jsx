@@ -14,11 +14,7 @@ export default function Login() {
     setError("");
     try {
       const user = await login(email, password);
-      if (user.role === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/");
-      }
+      navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.error || "Giriş başarısız");
     }

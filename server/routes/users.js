@@ -103,5 +103,20 @@ router.patch("/:id/verify", authenticate, requireAdmin, async (req, res) => {
     res.status(500).json({ error: "Sunucu hatası" });
   }
 });
+// Kullanıcı sil (sadece admin)
+router.delete("/:id", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
 
+    if (id === req.user.id) {
+      return res.status(400).json({ error: "Kendi hesabını silemezsin" });
+    }
+
+    await prisma.user.delete({ where: { id } });
+    res.json({ message: "Kullanıcı silindi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Sunucu hatası" });
+  }
+});
 module.exports = router;

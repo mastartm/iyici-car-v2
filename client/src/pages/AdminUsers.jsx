@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import api from "../api/axios";
+import Layout from "../components/Layout";
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
@@ -49,16 +49,22 @@ export default function AdminUsers() {
     }
   }
 
+  async function deleteUser(u) {
+    if (!confirm(`${u.email} kullanıcısını silmek istediğine emin misin?`))
+      return;
+    try {
+      await api.delete(`/users/${u.id}`);
+      loadUsers();
+    } catch (err) {
+      alert(err.response?.data?.error || "Silinemedi");
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <Layout>
       <div className="max-w-2xl mx-auto">
-        <Link to="/admin" className="text-sm text-gray-500 hover:text-gray-700">
-          &larr; Admin Panel
-        </Link>
+        <h1 className="text-2xl font-bold mb-6">Müşteri Yönetimi</h1>
 
-        <h1 className="text-2xl font-bold mt-2 mb-6">Müşteri Yönetimi</h1>
-
-        {/* YENİ KULLANICI FORMU */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <h2 className="font-semibold mb-4">Yeni Kullanıcı Oluştur</h2>
 
@@ -107,7 +113,6 @@ export default function AdminUsers() {
           </form>
         </div>
 
-        {/* KULLANICI LİSTESİ */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="font-semibold mb-4">Kullanıcılar ({users.length})</h2>
 
@@ -139,12 +144,18 @@ export default function AdminUsers() {
                   >
                     {u.role === "admin" ? "Admin Yetkisini Al" : "Admin Yap"}
                   </button>
+                  <button
+                    onClick={() => deleteUser(u)}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Sil
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         </div>
       </div>
-    </div>
+    </Layout>
   );
 }
