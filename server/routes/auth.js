@@ -2,16 +2,26 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const prisma = require("../lib/prisma");
+const {
+  validateEmail,
+  validatePassword,
+  handleError,
+} = require("../lib/validate");
 
 const router = express.Router();
 
+// v1'de kendi kendine kayıt kasıtlı olarak kapalıydı: kullanıcıları admin açar
+// (POST /api/users). Kayıt sadece ALLOW_REGISTRATION=true ile açılabilir.
 router.post("/register", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  if (process.env.ALLOW_REGISTRATION !== "true") {
+    return res
+      .status(403)
+      .json({ error: "Kayıt kapalı. Hesabı yönetici oluşturur." });
+  }
 
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email ve şifre zorunlu" });
-    }
+  try {
+    const email = validateEmail(req.body.email);
+    const password = validatePassword(req.body.password);
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -26,8 +36,7 @@ router.post("/register", async (req, res) => {
 
     res.status(201).json({ id: user.id, email: user.email, role: user.role });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Sunucu hatası" });
+    handleError(res, err);
   }
 });
 
@@ -35,7 +44,13 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ error: "Email ve şifre zorunlu" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
     if (!user) {
       return res.status(401).json({ error: "Email veya şifre hatalı" });
     }
@@ -56,8 +71,7 @@ router.post("/login", async (req, res) => {
       user: { id: user.id, email: user.email, role: user.role },
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Sunucu hatası" });
+    handleError(res, err);
   }
 });
 

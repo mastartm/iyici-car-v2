@@ -1,21 +1,36 @@
 const express = require("express");
 const prisma = require("../lib/prisma");
 const { authenticate, requireAdmin } = require("../middleware/auth");
+const {
+  ValidationError,
+  optionalText,
+  handleError,
+} = require("../lib/validate");
 
 const router = express.Router();
+
+const STATUSES = ["pending", "approved", "rejected", "completed"];
+const MAX_ITEMS_PER_REQUEST = 100;
+
+function parseId(value) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id < 1) {
+    throw new ValidationError("Geçersiz id");
+  }
+  return id;
+}
 
 // MÜŞTERİ: Kendi taleplerini listele
 router.get("/mine", authenticate, async (req, res) => {
   try {
     const requests = await prisma.request.findMany({
       where: { userId: req.user.id, hidden: false },
-      include: { items: { include: { product: true } } },
+      include: { items: { include: { product: { include: { photos: true } } } } },
       orderBy: { createdAt: "desc" },
     });
     res.json(requests);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Sunucu hatası" });
+    handleError(res, err);
   }
 });
 
@@ -24,44 +39,60 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
   try {
     const requests = await prisma.request.findMany({
       include: {
-        items: { include: { product: true } },
+        items: { include: { product: { include: { photos: true } } } },
         user: { select: { id: true, email: true } },
       },
       orderBy: { createdAt: "desc" },
     });
     res.json(requests);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Sunucu hatası" });
+    handleError(res, err);
   }
 });
 
 // MÜŞTERİ: Yeni talep oluştur (birden fazla ürün ile)
 router.post("/", authenticate, async (req, res) => {
   try {
-    const { productIds, notes } = req.body;
+    const { productIds } = req.body;
 
     if (!Array.isArray(productIds) || productIds.length === 0) {
-      return res.status(400).json({ error: "En az bir ürün seçmelisin" });
+      throw new ValidationError("En az bir ürün seçmelisin");
     }
+    if (productIds.length > MAX_ITEMS_PER_REQUEST) {
+      throw new ValidationError(
+        `Tek talepte en fazla ${MAX_ITEMS_PER_REQUEST} ürün olabilir`,
+      );
+    }
+
+    const ids = [...new Set(productIds.map(Number))];
+    if (ids.some((id) => !Number.isInteger(id) || id < 1)) {
+      throw new ValidationError("Geçersiz ürün seçimi");
+    }
+
+    // Sadece var olan ve yayında olan ürünler talep edilebilir
+    const found = await prisma.product.count({
+      where: { id: { in: ids }, visible: true },
+    });
+    if (found !== ids.length) {
+      throw new ValidationError(
+        "Seçtiğin ürünlerden bazıları artık mevcut değil. Stoğunu güncelle.",
+      );
+    }
+
+    const notes = optionalText(req.body.notes, "Not", 2000);
 
     const request = await prisma.request.create({
       data: {
         userId: req.user.id,
-        notes: notes || undefined,
-        items: {
-          create: productIds.map((productId) => ({
-            productId: Number(productId),
-          })),
-        },
+        notes: notes ?? undefined,
+        items: { create: ids.map((productId) => ({ productId })) },
       },
       include: { items: { include: { product: true } } },
     });
 
     res.status(201).json(request);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Sunucu hatası" });
+    handleError(res, err);
   }
 });
 
@@ -70,19 +101,18 @@ router.patch("/:id/status", authenticate, requireAdmin, async (req, res) => {
   try {
     const { status } = req.body;
 
-    if (!["pending", "approved", "rejected", "completed"].includes(status)) {
-      return res.status(400).json({ error: "Geçersiz durum" });
+    if (!STATUSES.includes(status)) {
+      throw new ValidationError("Geçersiz durum");
     }
 
     const request = await prisma.request.update({
-      where: { id: Number(req.params.id) },
+      where: { id: parseId(req.params.id) },
       data: { status },
     });
 
     res.json(request);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Sunucu hatası" });
+    handleError(res, err);
   }
 });
 
@@ -90,29 +120,32 @@ router.patch("/:id/status", authenticate, requireAdmin, async (req, res) => {
 router.patch("/:id/hidden", authenticate, requireAdmin, async (req, res) => {
   try {
     const { hidden } = req.body;
+    if (typeof hidden !== "boolean") {
+      throw new ValidationError("hidden true veya false olmalı");
+    }
 
     const request = await prisma.request.update({
-      where: { id: Number(req.params.id) },
-      data: { hidden: Boolean(hidden) },
+      where: { id: parseId(req.params.id) },
+      data: { hidden },
     });
 
     res.json(request);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Sunucu hatası" });
+    handleError(res, err);
   }
 });
 
 // ADMIN: Talebi kalıcı sil
 router.delete("/:id", authenticate, requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    await prisma.requestItem.deleteMany({ where: { requestId: id } });
-    await prisma.request.delete({ where: { id } });
+    const id = parseId(req.params.id);
+    await prisma.$transaction([
+      prisma.requestItem.deleteMany({ where: { requestId: id } }),
+      prisma.request.delete({ where: { id } }),
+    ]);
     res.json({ message: "Talep silindi" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Sunucu hatası" });
+    handleError(res, err);
   }
 });
 

@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import { formatPrice } from "../lib/format";
+import { WHATSAPP_URL } from "../lib/contact";
 
 const categories = [
   { key: "vehicle", label: "Araçlar" },
@@ -24,6 +26,7 @@ export default function Home() {
   const [yearFilter, setYearFilter] = useState("");
   const [transmissionFilter, setTransmissionFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [years, setYears] = useState([]);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { cart, addToCart, removeFromCart, isInCart } = useCart();
@@ -50,14 +53,19 @@ export default function Home() {
 
       const res = await api.get(`/products?${params.toString()}`);
       setProducts(res.data);
+
+      // Yıl listesi, yıl filtresi seçilince daralmasın diye sadece filtresizken güncellenir
+      if (!yearFilter) {
+        setYears(
+          [...new Set(res.data.map((p) => p.year).filter(Boolean))].sort(
+            (a, b) => b - a,
+          ),
+        );
+      }
     } catch (err) {
       console.error(err);
     }
   }
-
-  const years = [...new Set(products.map((p) => p.year).filter(Boolean))].sort(
-    (a, b) => b - a,
-  );
 
   const totalPages = Math.ceil(products.length / PER_PAGE);
   const paginated = products.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -73,8 +81,8 @@ export default function Home() {
                 Taleplerim
               </Link>
               {user.role === "admin" && (
-                <Link to="/admin" className="text-blue-600 text-sm">
-                  Admin Panel
+                <Link to="/dashboard" className="text-blue-600 text-sm">
+                  Yönetim Paneli
                 </Link>
               )}
               <button
@@ -92,6 +100,14 @@ export default function Home() {
               Giriş Yap
             </Link>
           )}
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-green-500 text-white text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-green-600"
+          >
+            İletişim
+          </a>
         </div>
       </div>
 
@@ -100,7 +116,10 @@ export default function Home() {
           {categories.map((c) => (
             <button
               key={c.key}
-              onClick={() => setActiveCategory(c.key)}
+              onClick={() => {
+                setActiveCategory(c.key);
+                setYearFilter("");
+              }}
               className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
                 activeCategory === c.key
                   ? "bg-black text-white"
@@ -179,7 +198,7 @@ export default function Home() {
                   </p>
                   {p.price != null && (
                     <p className="mt-2 font-semibold text-gray-700">
-                      {p.price} {p.currency}
+                      {formatPrice(p.price, p.currency)}
                     </p>
                   )}
                 </div>
@@ -282,7 +301,10 @@ export default function Home() {
                 {selectedProduct.price != null && (
                   <Detail
                     label="Fiyat"
-                    value={`${selectedProduct.price} ${selectedProduct.currency}`}
+                    value={formatPrice(
+                      selectedProduct.price,
+                      selectedProduct.currency,
+                    )}
                   />
                 )}
               </div>
