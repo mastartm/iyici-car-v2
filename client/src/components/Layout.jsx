@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { WHATSAPP_URL } from "../lib/contact";
 
 export default function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -53,6 +54,7 @@ export default function Layout({ children }) {
             <Link
               key={item.to}
               to={item.to}
+              onClick={() => setMobileOpen(false)}
               className={`px-4 py-2.5 rounded-lg text-sm font-semibold ${
                 location.pathname === item.to
                   ? "bg-gray-900 text-white"
@@ -65,6 +67,14 @@ export default function Layout({ children }) {
         </nav>
 
         <div className="border-t pt-4 mt-4">
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-center bg-green-500 text-white text-xs font-semibold rounded-lg py-2 mb-3 hover:bg-green-600"
+          >
+            WhatsApp İletişim
+          </a>
           <p className="text-xs text-gray-500 truncate mb-2">{user?.email}</p>
           <button
             onClick={handleLogout}

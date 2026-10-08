@@ -1,9 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import Layout from "../components/Layout";
+import Gallery from "../components/Gallery";
+import { imageUrl, CARD, THUMB } from "../lib/image";
+import { formatPrice } from "../lib/format";
+import { WHATSAPP_URL } from "../lib/contact";
 
 const categories = [
   { key: "vehicle", label: "Araçlar" },
@@ -11,7 +15,12 @@ const categories = [
   { key: "part", label: "Parçalar" },
 ];
 
-const PER_PAGE = 12;
+const PER_PAGE_OPTIONS = [12, 24, 48, 96];
+
+// Sunucudaki sınırlarla aynı olmalı (server/routes/products.js)
+const MAX_FILE_MB = 10;
+const MAX_PER_UPLOAD = 10;
+const MAX_PHOTOS = 15;
 
 const emptyForm = {
   name: "",
@@ -31,7 +40,7 @@ const emptyForm = {
 
 export default function Inventory() {
   const { user } = useAuth();
-  const { cart, addToCart, removeFromCart, isInCart } = useCart();
+  const { addToCart, removeFromCart, isInCart } = useCart();
   const isAdmin = user?.role === "admin";
 
   const [searchParams] = useSearchParams();
@@ -45,12 +54,27 @@ export default function Inventory() {
   const [yearFilter, setYearFilter] = useState("");
   const [transmissionFilter, setTransmissionFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(PER_PAGE_OPTIONS[0]);
+  const [years, setYears] = useState([]);
+  const [stats, setStats] = useState({ vehicle: 0, engine: 0, part: 0 });
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formCategory, setFormCategory] = useState("vehicle");
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [editId, setEditId] = useState(null);
+  const [newFiles, setNewFiles] = useState([]);
+  const [editPhotos, setEditPhotos] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  // Seçilen dosyaların önizlemesi; liste değişince eskiler serbest bırakılır
+  const previews = useMemo(
+    () => newFiles.map((f) => URL.createObjectURL(f)),
+    [newFiles],
+  );
+  useEffect(() => {
+    return () => previews.forEach((u) => URL.revokeObjectURL(u));
+  }, [previews]);
 
   useEffect(() => {
     loadProducts();
@@ -75,10 +99,32 @@ export default function Inventory() {
 
       const res = await api.get(`/products?${params.toString()}`);
       setProducts(res.data);
+
+      // Yıl listesi, yıl filtresi seçilince daralmasın diye sadece filtresizken güncellenir
+      if (!yearFilter) {
+        setYears(
+          [...new Set(res.data.map((p) => p.year).filter(Boolean))].sort(
+            (a, b) => b - a,
+          ),
+        );
+      }
     } catch (err) {
       console.error(err);
     }
   }
+
+  async function loadStats() {
+    try {
+      const res = await api.get("/products/stats");
+      setStats(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  useEffect(() => {
+    loadStats();
+  }, []);
 
   function set(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -90,36 +136,112 @@ export default function Inventory() {
       setError("İsim zorunlu");
       return;
     }
+    // Düzenlemede boş bırakılan alan null gider (değer silinir); yeni kayıtta hiç gönderilmez
+    const empty = editId ? null : undefined;
     const payload = {
       category: formCategory,
       name: form.name,
-      vin: form.vin || undefined,
-      year: form.year ? Number(form.year) : undefined,
-      km: form.km ? Number(form.km) : undefined,
-      color: form.color || undefined,
-      segment: form.segment || undefined,
-      engineCode: form.engineCode || undefined,
-      engineVolume: form.engineVolume || undefined,
-      transmission: form.transmission || undefined,
-      seats: form.seats ? Number(form.seats) : undefined,
-      steering: form.steering || undefined,
-      price: form.price ? Number(form.price) : undefined,
+      vin: form.vin || empty,
+      year: form.year ? Number(form.year) : empty,
+      km: form.km ? Number(form.km) : empty,
+      color: form.color || empty,
+      segment: form.segment || empty,
+      engineCode: form.engineCode || empty,
+      engineVolume: form.engineVolume || empty,
+      transmission: form.transmission || empty,
+      seats: form.seats ? Number(form.seats) : empty,
+      steering: form.steering || empty,
+      price: form.price ? Number(form.price) : empty,
       currency: form.currency || "TRY",
     };
 
+    setSaving(true);
+    let productId = editId;
     try {
       if (editId) {
         await api.put(`/products/${editId}`, payload);
       } else {
-        await api.post("/products", payload);
+        const res = await api.post("/products", payload);
+        productId = res.data.id;
       }
-      setForm(emptyForm);
-      setIsFormOpen(false);
-      setEditId(null);
-      setSelectedProduct(null);
-      loadProducts();
     } catch (err) {
       setError(err.response?.data?.error || "Kaydedilemedi");
+      setSaving(false);
+      return;
+    }
+
+    if (newFiles.length > 0) {
+      try {
+        const data = new FormData();
+        newFiles.forEach((f) => data.append("photos", f));
+        await api.post(`/products/${productId}/photos`, data);
+      } catch (err) {
+        // Kayıt tamam, fotoğraf yüklenemedi: formu düzenleme moduna alıp tekrar denetir
+        setEditId(productId);
+        setEditPhotos([]);
+        setError(
+          `Kayıt kaydedildi ama fotoğraflar yüklenemedi: ${
+            err.response?.data?.error || "bağlantı hatası"
+          }. Fotoğrafları kontrol edip tekrar Güncelle'ye bas.`,
+        );
+        setSaving(false);
+        loadProducts();
+        loadStats();
+        return;
+      }
+    }
+
+    setForm(emptyForm);
+    setNewFiles([]);
+    setEditPhotos([]);
+    setIsFormOpen(false);
+    setEditId(null);
+    setSelectedProduct(null);
+    setSaving(false);
+    loadProducts();
+    loadStats();
+  }
+
+  function addFiles(fileList) {
+    const picked = Array.from(fileList);
+    const bad = picked.find(
+      (f) => !["image/jpeg", "image/png", "image/webp"].includes(f.type),
+    );
+    if (bad) {
+      setError(`"${bad.name}" desteklenmiyor. Sadece JPG, PNG veya WebP.`);
+      return;
+    }
+    const tooBig = picked.find((f) => f.size > MAX_FILE_MB * 1024 * 1024);
+    if (tooBig) {
+      setError(`"${tooBig.name}" ${MAX_FILE_MB} MB'tan büyük.`);
+      return;
+    }
+    const total = newFiles.length + picked.length;
+    if (total > MAX_PER_UPLOAD) {
+      setError(`Tek seferde en fazla ${MAX_PER_UPLOAD} fotoğraf seçebilirsin.`);
+      return;
+    }
+    if (editPhotos.length + total > MAX_PHOTOS) {
+      setError(`Bir üründe en fazla ${MAX_PHOTOS} fotoğraf olabilir.`);
+      return;
+    }
+    setError("");
+    setNewFiles((prev) => [...prev, ...picked]);
+  }
+
+  async function removeExistingPhoto(photo) {
+    if (!confirm("Bu fotoğrafı silmek istediğine emin misin?")) return;
+    try {
+      await api.delete(`/products/${editId}/photos/${photo.id}`);
+      setEditPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+      setSelectedProduct((sp) =>
+        sp && sp.id === editId
+          ? { ...sp, photos: sp.photos.filter((p) => p.id !== photo.id) }
+          : sp,
+      );
+      loadProducts();
+    } catch (err) {
+      setError(err.response?.data?.error || "Fotoğraf silinemedi");
     }
   }
   function openEditForm(p) {
@@ -139,6 +261,8 @@ export default function Inventory() {
       price: p.price || "",
       currency: p.currency || "TRY",
     });
+    setNewFiles([]);
+    setEditPhotos(p.photos || []);
     setEditId(p.id);
     setError("");
     setIsFormOpen(true);
@@ -152,7 +276,7 @@ export default function Inventory() {
         setSelectedProduct({ ...p, visible: !p.visible });
       }
     } catch (err) {
-      console.error(err);
+      alert(err.response?.data?.error || "Güncellenemedi");
     }
   }
 
@@ -162,50 +286,63 @@ export default function Inventory() {
       await api.delete(`/products/${id}`);
       setSelectedProduct(null);
       loadProducts();
+      loadStats();
     } catch (err) {
-      console.error(err);
+      alert(err.response?.data?.error || "Silinemedi");
     }
   }
 
-  const years = [...new Set(products.map((p) => p.year).filter(Boolean))].sort(
-    (a, b) => b - a,
-  );
-  const totalPages = Math.ceil(products.length / PER_PAGE);
-  const paginated = products.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const totalPages = Math.ceil(products.length / perPage);
+  const paginated = products.slice((page - 1) * perPage, page * perPage);
 
   return (
     <Layout>
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Envanter</h1>
-          {isAdmin && (
-            <button
-              onClick={() => {
-                setFormCategory(activeCategory);
-                setForm(emptyForm);
-                setEditId(null);
-                setError("");
-                setIsFormOpen(true);
-              }}
-              className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-700"
+          <div className="flex gap-3">
+            <a
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-green-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-600"
             >
-              + Yeni Kayıt Ekle
-            </button>
-          )}
+              İletişim
+            </a>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setFormCategory(activeCategory);
+                  setForm(emptyForm);
+                  setNewFiles([]);
+                  setEditPhotos([]);
+                  setEditId(null);
+                  setError("");
+                  setIsFormOpen(true);
+                }}
+                className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-700"
+              >
+                + Yeni Kayıt Ekle
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-2 mb-4">
           {categories.map((c) => (
             <button
               key={c.key}
-              onClick={() => setActiveCategory(c.key)}
+              onClick={() => {
+                setActiveCategory(c.key);
+                setYearFilter("");
+              }}
               className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
                 activeCategory === c.key
                   ? "bg-black text-white"
                   : "bg-white text-gray-600 hover:bg-gray-50"
               }`}
             >
-              {c.label}
+              {c.label} ({stats[c.key]})
             </button>
           ))}
         </div>
@@ -259,20 +396,32 @@ export default function Inventory() {
                 onClick={() => setSelectedProduct(p)}
                 className="bg-white rounded-lg shadow hover:shadow-lg transition cursor-pointer overflow-hidden relative"
               >
-                {isAdmin && !p.visible && (
-                  <span className="absolute top-2 left-2 z-10 text-[10px] bg-gray-800 text-white px-2 py-0.5 rounded-full">
-                    Gizli
-                  </span>
-                )}
-                <div className="h-40 bg-gray-200 flex items-center justify-center text-gray-400">
+                <div className="absolute top-2 left-2 z-10 flex gap-1">
+                  {isAdmin && !p.visible && (
+                    <span className="text-[10px] bg-gray-800 text-white px-2 py-0.5 rounded-full">
+                      Gizli
+                    </span>
+                  )}
+                  {isInCart(p.id) && (
+                    <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                      Stoğumda
+                    </span>
+                  )}
+                </div>
+                <div className="relative h-40 bg-gray-200 flex items-center justify-center text-gray-400">
                   {p.photos?.[0] ? (
                     <img
-                      src={p.photos[0].url}
+                      src={imageUrl(p.photos[0].url, CARD)}
                       className="w-full h-full object-cover"
                       alt=""
                     />
                   ) : (
                     "Fotoğraf yok"
+                  )}
+                  {p.photos?.length > 1 && (
+                    <span className="absolute bottom-2 right-2 text-[10px] bg-black/60 text-white px-2 py-0.5 rounded">
+                      {p.photos.length} foto
+                    </span>
                   )}
                 </div>
                 <div className="p-4">
@@ -282,7 +431,7 @@ export default function Inventory() {
                   </p>
                   {p.price != null && (
                     <p className="mt-2 font-semibold text-gray-700">
-                      {p.price} {p.currency}
+                      {formatPrice(p.price, p.currency)}
                     </p>
                   )}
                 </div>
@@ -291,8 +440,29 @@ export default function Inventory() {
           </div>
         )}
 
+        {products.length > PER_PAGE_OPTIONS[0] && (
+          <div className="flex justify-center items-center gap-2 mt-8 text-sm text-gray-500">
+            <span>Sayfada</span>
+            <select
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value));
+                setPage(1);
+              }}
+              className="border rounded-lg px-2 py-1 bg-white"
+            >
+              {PER_PAGE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <span>kayıt</span>
+          </div>
+        )}
+
         {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-4 mt-8">
+          <div className="flex justify-center items-center gap-4 mt-4">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
@@ -323,17 +493,7 @@ export default function Inventory() {
             className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="h-64 bg-gray-200 flex items-center justify-center text-gray-400">
-              {selectedProduct.photos?.[0] ? (
-                <img
-                  src={selectedProduct.photos[0].url}
-                  className="w-full h-full object-cover"
-                  alt=""
-                />
-              ) : (
-                "Fotoğraf yok"
-              )}
-            </div>
+            <Gallery key={selectedProduct.id} photos={selectedProduct.photos} />
 
             <div className="p-6">
               <div className="flex justify-between items-start mb-1">
@@ -407,7 +567,10 @@ export default function Inventory() {
                 {selectedProduct.price != null && (
                   <Detail
                     label="Fiyat"
-                    value={`${selectedProduct.price} ${selectedProduct.currency}`}
+                    value={formatPrice(
+                      selectedProduct.price,
+                      selectedProduct.currency,
+                    )}
                   />
                 )}
               </div>
@@ -494,6 +657,8 @@ export default function Inventory() {
                   <input
                     type="number"
                     placeholder="Yıl"
+                    min="1900"
+                    max="2100"
                     value={form.year}
                     onChange={(e) => set("year", e.target.value)}
                     className="border p-2 rounded"
@@ -504,6 +669,8 @@ export default function Inventory() {
                     <input
                       type="number"
                       placeholder="Kilometre"
+                      min="0"
+                      max="999999999"
                       value={form.km}
                       onChange={(e) => set("km", e.target.value)}
                       className="border p-2 rounded"
@@ -569,6 +736,9 @@ export default function Inventory() {
                 <input
                   type="number"
                   placeholder="Fiyat"
+                  min="0"
+                  max="999999999"
+                  step="0.01"
                   value={form.price}
                   onChange={(e) => set("price", e.target.value)}
                   className="border p-2 rounded"
@@ -582,6 +752,76 @@ export default function Inventory() {
                   <option value="USD">Amerikan Doları (USD)</option>
                   <option value="GBP">İngiliz Sterlini (GBP)</option>
                 </select>
+
+                <div className="col-span-2 border-t pt-4">
+                  <p className="text-sm font-semibold mb-2">
+                    Fotoğraflar ({editPhotos.length + newFiles.length}/
+                    {MAX_PHOTOS})
+                  </p>
+
+                  {(editPhotos.length > 0 || newFiles.length > 0) && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {editPhotos.map((photo) => (
+                        <div key={photo.id} className="relative">
+                          <img
+                            src={imageUrl(photo.url, THUMB)}
+                            className="h-16 w-24 object-cover rounded"
+                            alt=""
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeExistingPhoto(photo)}
+                            aria-label="Fotoğrafı sil"
+                            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-600 text-white text-xs leading-none"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      {newFiles.map((file, i) => (
+                        <div key={`${file.name}-${i}`} className="relative">
+                          <img
+                            src={previews[i]}
+                            className="h-16 w-24 object-cover rounded ring-2 ring-blue-400"
+                            alt=""
+                          />
+                          <span className="absolute bottom-0 left-0 text-[9px] bg-blue-600 text-white px-1 rounded-tr">
+                            yeni
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNewFiles((prev) =>
+                                prev.filter((_, idx) => idx !== i),
+                              )
+                            }
+                            aria-label="Seçimi kaldır"
+                            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-700 text-white text-xs leading-none"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <label className="inline-block cursor-pointer text-sm text-blue-600 hover:underline">
+                    + Fotoğraf seç (JPG, PNG, WebP, en fazla {MAX_FILE_MB} MB)
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        addFiles(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <p className="text-xs text-gray-400 mt-1">
+                    İlk fotoğraf kapak olur. Kaydet'e basınca yüklenir.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -594,9 +834,16 @@ export default function Inventory() {
               </button>
               <button
                 onClick={handleSave}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
+                disabled={saving}
+                className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
               >
-                {editId ? "Güncelle" : "Kaydet"}
+                {saving
+                  ? newFiles.length > 0
+                    ? "Fotoğraflar yükleniyor..."
+                    : "Kaydediliyor..."
+                  : editId
+                    ? "Güncelle"
+                    : "Kaydet"}
               </button>
             </div>
           </div>

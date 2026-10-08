@@ -45,7 +45,7 @@ export default function AdminUsers() {
       await api.patch(`/users/${u.id}/role`, { role: newRole });
       loadUsers();
     } catch (err) {
-      console.error(err);
+      alert(err.response?.data?.error || "Rol değiştirilemedi");
     }
   }
 
@@ -90,10 +90,11 @@ export default function AdminUsers() {
             />
             <input
               type="password"
-              placeholder="Şifre"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="border p-2 rounded flex-1 min-w-[140px]"
+              minLength={6}
+              placeholder="Şifre (en az 6 karakter)"
               required
             />
             <select

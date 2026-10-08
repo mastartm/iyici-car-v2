@@ -137,7 +137,9 @@ export default function AdminRequests() {
                     </span>
                   </div>
 
-                  <p className="text-xs text-gray-500 mb-2">{r.user?.email}</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    {r.user?.email} • Talep #{r.id} • {r.items.length} ürün
+                  </p>
 
                   <div className="space-y-1 mb-3">
                     {r.items.map((item) => (
@@ -145,7 +147,16 @@ export default function AdminRequests() {
                         key={item.id}
                         className="flex justify-between items-center text-sm"
                       >
-                        <span>
+                        <span className="flex items-center gap-2">
+                          <span className="inline-block w-12 h-9 rounded bg-gray-200 overflow-hidden shrink-0">
+                            {item.product.photos?.[0] && (
+                              <img
+                                src={item.product.photos[0].url}
+                                className="w-full h-full object-cover"
+                                alt=""
+                              />
+                            )}
+                          </span>
                           {item.product.name}{" "}
                           {item.product.year && `(${item.product.year})`}
                           {!item.product.visible && (
@@ -191,6 +202,14 @@ export default function AdminRequests() {
                     >
                       Tamamlandı
                     </button>
+                    {r.status !== "pending" && (
+                      <button
+                        onClick={() => updateStatus(r.id, "pending")}
+                        className="text-xs bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-200"
+                      >
+                        Beklemeye Al
+                      </button>
+                    )}
                     <button
                       onClick={() => toggleHidden(r)}
                       className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200"

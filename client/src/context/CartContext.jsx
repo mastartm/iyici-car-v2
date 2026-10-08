@@ -1,27 +1,56 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "./AuthContext";
 
 const CartContext = createContext();
 
+// Stok listesi tarayıcıda kullanıcı başına saklanır; sayfa yenilense de kaybolmaz.
 export function CartProvider({ children }) {
-  const [cart, setCart] = useState([]); // vehicle objelerinin listesi
+  const { user } = useAuth();
+  const storageKey = user ? `cart:${user.id}` : null;
+  const [cart, setCart] = useState([]); // ürün objelerinin listesi
 
-  function addToCart(vehicle) {
+  useEffect(() => {
+    if (!storageKey) {
+      setCart([]);
+      return;
+    }
+    try {
+      setCart(JSON.parse(localStorage.getItem(storageKey)) || []);
+    } catch {
+      setCart([]);
+    }
+  }, [storageKey]);
+
+  function update(fn) {
     setCart((prev) => {
-      if (prev.some((v) => v.id === vehicle.id)) return prev; // zaten ekliyse tekrar ekleme
-      return [...prev, vehicle];
+      const next = fn(prev);
+      if (storageKey) {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch {
+          // depolama dolu ya da kapalıysa sadece bellekte kalır
+        }
+      }
+      return next;
     });
   }
 
-  function removeFromCart(vehicleId) {
-    setCart((prev) => prev.filter((v) => v.id !== vehicleId));
+  function addToCart(product) {
+    update((prev) =>
+      prev.some((p) => p.id === product.id) ? prev : [...prev, product],
+    );
   }
 
-  function isInCart(vehicleId) {
-    return cart.some((v) => v.id === vehicleId);
+  function removeFromCart(productId) {
+    update((prev) => prev.filter((p) => p.id !== productId));
+  }
+
+  function isInCart(productId) {
+    return cart.some((p) => p.id === productId);
   }
 
   function clearCart() {
-    setCart([]);
+    update(() => []);
   }
 
   return (

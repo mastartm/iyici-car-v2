@@ -3,6 +3,10 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import Gallery from "../components/Gallery";
+import { imageUrl, CARD } from "../lib/image";
+import { formatPrice } from "../lib/format";
+import { WHATSAPP_URL } from "../lib/contact";
 
 const categories = [
   { key: "vehicle", label: "Araçlar" },
@@ -24,6 +28,7 @@ export default function Home() {
   const [yearFilter, setYearFilter] = useState("");
   const [transmissionFilter, setTransmissionFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [years, setYears] = useState([]);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { cart, addToCart, removeFromCart, isInCart } = useCart();
@@ -50,14 +55,19 @@ export default function Home() {
 
       const res = await api.get(`/products?${params.toString()}`);
       setProducts(res.data);
+
+      // Yıl listesi, yıl filtresi seçilince daralmasın diye sadece filtresizken güncellenir
+      if (!yearFilter) {
+        setYears(
+          [...new Set(res.data.map((p) => p.year).filter(Boolean))].sort(
+            (a, b) => b - a,
+          ),
+        );
+      }
     } catch (err) {
       console.error(err);
     }
   }
-
-  const years = [...new Set(products.map((p) => p.year).filter(Boolean))].sort(
-    (a, b) => b - a,
-  );
 
   const totalPages = Math.ceil(products.length / PER_PAGE);
   const paginated = products.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -73,8 +83,8 @@ export default function Home() {
                 Taleplerim
               </Link>
               {user.role === "admin" && (
-                <Link to="/admin" className="text-blue-600 text-sm">
-                  Admin Panel
+                <Link to="/dashboard" className="text-blue-600 text-sm">
+                  Yönetim Paneli
                 </Link>
               )}
               <button
@@ -92,6 +102,14 @@ export default function Home() {
               Giriş Yap
             </Link>
           )}
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-green-500 text-white text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-green-600"
+          >
+            İletişim
+          </a>
         </div>
       </div>
 
@@ -100,7 +118,10 @@ export default function Home() {
           {categories.map((c) => (
             <button
               key={c.key}
-              onClick={() => setActiveCategory(c.key)}
+              onClick={() => {
+                setActiveCategory(c.key);
+                setYearFilter("");
+              }}
               className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
                 activeCategory === c.key
                   ? "bg-black text-white"
@@ -161,15 +182,20 @@ export default function Home() {
                 onClick={() => setSelectedProduct(p)}
                 className="bg-white rounded-lg shadow hover:shadow-lg transition cursor-pointer overflow-hidden"
               >
-                <div className="h-40 bg-gray-200 flex items-center justify-center text-gray-400">
+                <div className="relative h-40 bg-gray-200 flex items-center justify-center text-gray-400">
                   {p.photos?.[0] ? (
                     <img
-                      src={p.photos[0].url}
+                      src={imageUrl(p.photos[0].url, CARD)}
                       className="w-full h-full object-cover"
                       alt=""
                     />
                   ) : (
                     "Fotoğraf yok"
+                  )}
+                  {p.photos?.length > 1 && (
+                    <span className="absolute bottom-2 right-2 text-[10px] bg-black/60 text-white px-2 py-0.5 rounded">
+                      {p.photos.length} foto
+                    </span>
                   )}
                 </div>
                 <div className="p-4">
@@ -179,7 +205,7 @@ export default function Home() {
                   </p>
                   {p.price != null && (
                     <p className="mt-2 font-semibold text-gray-700">
-                      {p.price} {p.currency}
+                      {formatPrice(p.price, p.currency)}
                     </p>
                   )}
                 </div>
@@ -220,17 +246,7 @@ export default function Home() {
             className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="h-64 bg-gray-200 flex items-center justify-center text-gray-400">
-              {selectedProduct.photos?.[0] ? (
-                <img
-                  src={selectedProduct.photos[0].url}
-                  className="w-full h-full object-cover"
-                  alt=""
-                />
-              ) : (
-                "Fotoğraf yok"
-              )}
-            </div>
+            <Gallery key={selectedProduct.id} photos={selectedProduct.photos} />
 
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-1">
@@ -282,7 +298,10 @@ export default function Home() {
                 {selectedProduct.price != null && (
                   <Detail
                     label="Fiyat"
-                    value={`${selectedProduct.price} ${selectedProduct.currency}`}
+                    value={formatPrice(
+                      selectedProduct.price,
+                      selectedProduct.currency,
+                    )}
                   />
                 )}
               </div>
