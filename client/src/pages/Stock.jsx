@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useCart } from "../context/CartContext";
 import Layout from "../components/Layout";
+import { imageUrl, THUMB } from "../lib/image";
 
 export default function Stock() {
   const { cart, removeFromCart, clearCart } = useCart();
@@ -46,11 +47,22 @@ export default function Stock() {
                   key={p.id}
                   className="bg-white rounded-lg shadow p-4 flex justify-between items-center"
                 >
-                  <div>
-                    <p className="font-semibold">{p.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {p.vin || "VIN yok"} {p.year && `• ${p.year}`}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-16 h-12 rounded bg-gray-200 overflow-hidden shrink-0">
+                      {p.photos?.[0] && (
+                        <img
+                          src={imageUrl(p.photos[0].url, THUMB)}
+                          className="w-full h-full object-cover"
+                          alt=""
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-semibold">{p.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {p.vin || "VIN yok"} {p.year && `• ${p.year}`}
+                      </p>
+                    </div>
                   </div>
                   <button
                     onClick={() => removeFromCart(p.id)}

@@ -8,6 +8,7 @@ const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 const productRoutes = require("./routes/products");
 const requestRoutes = require("./routes/requests");
+const { handleError } = require("./lib/validate");
 
 if (!process.env.JWT_SECRET) {
   console.error("JWT_SECRET tanımlı değil, sunucu başlatılmadı.");
@@ -57,8 +58,8 @@ app.use((err, req, res, next) => {
   if (err.type === "entity.parse.failed") {
     return res.status(400).json({ error: "Geçersiz JSON" });
   }
-  console.error(err);
-  res.status(500).json({ error: "Sunucu hatası" });
+  // Dosya yükleme (multer) ve doğrulama hataları buraya düşer
+  handleError(res, err);
 });
 
 const PORT = process.env.PORT || 5000;

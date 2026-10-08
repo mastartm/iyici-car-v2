@@ -64,6 +64,17 @@ function handleError(res, err) {
   if (err instanceof ValidationError) {
     return res.status(400).json({ error: err.message });
   }
+  // multer: dosya çok büyük, çok fazla dosya vb.
+  if (err && err.name === "MulterError") {
+    const messages = {
+      LIMIT_FILE_SIZE: "Her fotoğraf en fazla 10 MB olabilir",
+      LIMIT_FILE_COUNT: "Tek seferde en fazla 10 fotoğraf yüklenebilir",
+      LIMIT_UNEXPECTED_FILE: "Beklenmeyen dosya alanı",
+    };
+    return res
+      .status(400)
+      .json({ error: messages[err.code] || "Dosya yüklenemedi" });
+  }
   // Prisma: kayıt bulunamadı
   if (err && err.code === "P2025") {
     return res.status(404).json({ error: "Kayıt bulunamadı" });

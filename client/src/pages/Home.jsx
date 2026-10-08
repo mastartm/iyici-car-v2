@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
+import Gallery from "../components/Gallery";
+import { imageUrl, CARD } from "../lib/image";
 import { formatPrice } from "../lib/format";
 import { WHATSAPP_URL } from "../lib/contact";
 
@@ -180,15 +182,20 @@ export default function Home() {
                 onClick={() => setSelectedProduct(p)}
                 className="bg-white rounded-lg shadow hover:shadow-lg transition cursor-pointer overflow-hidden"
               >
-                <div className="h-40 bg-gray-200 flex items-center justify-center text-gray-400">
+                <div className="relative h-40 bg-gray-200 flex items-center justify-center text-gray-400">
                   {p.photos?.[0] ? (
                     <img
-                      src={p.photos[0].url}
+                      src={imageUrl(p.photos[0].url, CARD)}
                       className="w-full h-full object-cover"
                       alt=""
                     />
                   ) : (
                     "Fotoğraf yok"
+                  )}
+                  {p.photos?.length > 1 && (
+                    <span className="absolute bottom-2 right-2 text-[10px] bg-black/60 text-white px-2 py-0.5 rounded">
+                      {p.photos.length} foto
+                    </span>
                   )}
                 </div>
                 <div className="p-4">
@@ -239,17 +246,7 @@ export default function Home() {
             className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="h-64 bg-gray-200 flex items-center justify-center text-gray-400">
-              {selectedProduct.photos?.[0] ? (
-                <img
-                  src={selectedProduct.photos[0].url}
-                  className="w-full h-full object-cover"
-                  alt=""
-                />
-              ) : (
-                "Fotoğraf yok"
-              )}
-            </div>
+            <Gallery key={selectedProduct.id} photos={selectedProduct.photos} />
 
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-1">

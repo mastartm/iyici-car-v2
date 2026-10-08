@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `Photo` ADD COLUMN `publicId` VARCHAR(255) NULL,
+    MODIFY `url` VARCHAR(500) NOT NULL;
